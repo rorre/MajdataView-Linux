@@ -1,5 +1,8 @@
-﻿using System.Collections;
+using System;
+using System.Collections;
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
@@ -96,7 +99,7 @@ public class BGManager : MonoBehaviour
         foreach (var name in videoName)
         {
             if (!File.Exists(path + "/" + name)) continue;
-            
+
             loadVideo(path + "/" + name, speed);
             break;
         }
@@ -113,6 +116,56 @@ public class BGManager : MonoBehaviour
     }
 
     private void loadVideo(string path, float speed)
+    {
+        // On Linux, convert mp4 to webm for compatibility
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && path.EndsWith(".mp4"))
+        {
+            StartCoroutine(convertAndLoadVideo(path, speed));
+        }
+        else
+        {
+            playVideoFile(path, speed);
+        }
+    }
+
+    private IEnumerator convertAndLoadVideo(string mp4Path, float speed)
+    {
+        string webmPath = Path.ChangeExtension(mp4Path, ".webm");
+        var textErr = GameObject.Find("ErrText").GetComponent<Text>();
+
+        // Skip conversion if webm already exists
+        if (!File.Exists(webmPath))
+        {
+            textErr.text = "[LINUX] Rendering PV to VP8, game will freeze. Please wait...";
+            print("Converting to webm");
+            // Use ffmpeg to convert mp4 to webm
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = $"-i \"{mp4Path}\" -c:v libvpx -b:v 0 -crf 30 -c:a libopus \"{webmPath}\" -y",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using (Process process = Process.Start(psi))
+            {
+                process.WaitForExit();
+                if (process.ExitCode != 0)
+                {
+                    UnityEngine.Debug.LogError($"FFmpeg conversion failed for {mp4Path}");
+                    yield break;
+                }
+            }
+        }
+
+        textErr.text = "";
+        playVideoFile(webmPath, speed);
+        yield return null;
+    }
+
+    private void playVideoFile(string path, float speed)
     {
         videoPlayer.url = "file://" + path;
         videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
@@ -133,7 +186,7 @@ public class BGManager : MonoBehaviour
         var scale = videoPlayer.height / (float)videoPlayer.width;
         spriteRender.sprite =
             Sprite.Create(new Texture2D(1080, 1080), new Rect(0, 0, 1080, 1080), new Vector2(0.5f, 0.5f));
-        
+
         gameObject.transform.localScale = new Vector3(originalScaleX, originalScaleX * scale);
     }
 }

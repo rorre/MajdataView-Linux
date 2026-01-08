@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Pipes;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Runtime.InteropServices;
 
 public class ScreenRecorder : MonoBehaviour
 {
@@ -115,7 +116,7 @@ public class ScreenRecorder : MonoBehaviour
             GameObject.Find("ErrText").GetComponent<Text>().text += "渲染成功，视频生成在" + maidata_path +
                                                                     "\\out.mp4\nRender Successed\nExitCode:" +
                                                                     p.ExitCode;
-            Process.Start("explorer", "/select,\"" + maidata_path + "\\out.mp4" + "\"");
+            ShowInFileManager(Path.Combine(maidata_path, "out.mp4"));
         }
         else
         {
@@ -127,4 +128,27 @@ public class ScreenRecorder : MonoBehaviour
         timeProvider.isStart = false;
         bgManager.PauseVideo();
     }
+
+
+    void ShowInFileManager(string filePath)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer",
+                Arguments = $"/select,\"{filePath}\"",
+                UseShellExecute = true
+            });
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            Process.Start("xdg-open", $"\"{Path.GetDirectoryName(filePath)}\"");
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            Process.Start("open", $"-R \"{filePath}\"");
+        }
+    }
+
 }
